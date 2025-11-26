@@ -1,0 +1,36 @@
+.buttonContainer {
+    margin-top : 18px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-evenly;
+}
+.tableContainer {
+    width : 100%;
+    height : 50vh;
+    overflow : auto;
+    margin-top : 18px;
+}
+table {
+    table-layout: fixed;
+    border-collapse : collapse;
+    width : 100%;
+}
+.sheetSelector {
+    width : 50%
+}
+.addSheetTextbox {
+    width : 50%
+}
+.statHandlerButton {
+    width : 20%
+}
+tr{
+    height : 3vh;
+}
+th, td {
+    white-space: nowrap; /* Prevents text from  wrapping to the next line */
+    overflow: hidden;    /* Hides any content that exceeds the element's box */
+    text-overflow: clip; /* Displays an ellipsis (...) for clipped text */
+    width: 5vw;
+    border: 3px solid
+}
