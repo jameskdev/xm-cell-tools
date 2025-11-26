@@ -40,7 +40,8 @@ export default function TableLoader() {
       return;
     }
     workbook.current.set(sheetName, new Map());
-    _updateSheetList([...sheetList, sheetName]);
+    sheetList.push(sheetName);
+    _updateSheetList(Array.from(sheetList));
   }
 
   function removeSheet(sheetName: string) {
@@ -112,7 +113,6 @@ export default function TableLoader() {
           sn = sn + "_copy";
         }
         addNewSheet(sn);
-        console.log(sheetList);
         const sheetToAppendTo = workbook.current.get(sn);
         const sheetContents = utils.sheet_to_json<string[]>(wb.Sheets[sn], {header: 1});
         sheetContents.forEach((sheetRow, rowNum) => {
