@@ -9,6 +9,9 @@ export default function TableLoader() {
   const [currentSheet, _updateCurrentSheet] = useState<Map<string, CellData> | undefined>();
   const [sheetList, _updateSheetList] = useState<string[]>([]);
   const [currentSheetName, _setCurrentSheetName] = useState<string>("");
+  const [compareSheetName, _setCompareSheetName] = useState<string>("");
+  const [compareValueColumn, _setCompareValueColumn] = useState<string>("A");
+  const [replaceValueColumn, _setReplaceValueColumn] = useState<string>("B");
   const [topOffset, _setTopOffset] = useState(0);
   const [leftOffset, _setLeftOffset] = useState(0);
   const [maxRows, _setMaxRows] = useState(25);
@@ -32,6 +35,10 @@ export default function TableLoader() {
   }
 
   function addNewSheet(sheetName: string) {
+    if (workbook.current.has(sheetName)) {
+      window.alert("The sheet name that you specified already exists. Please use a different sheet name!");
+      return;
+    }
     workbook.current.set(sheetName, new Map());
     _updateSheetList([...sheetList, sheetName]);
   }
@@ -99,8 +106,13 @@ export default function TableLoader() {
   function fileLoad(loadedFile : File) {
     loadedFile.arrayBuffer().then((res) => {
       const wb = read(res);
-      wb.SheetNames.forEach((sn) => {
+      wb.SheetNames.forEach((sn_raw) => {
+        let sn = sn_raw;
+        if (workbook.current.has(sn)) {
+          sn = sn + "_copy";
+        }
         addNewSheet(sn);
+        console.log(sheetList);
         const sheetToAppendTo = workbook.current.get(sn);
         const sheetContents = utils.sheet_to_json<string[]>(wb.Sheets[sn], {header: 1});
         sheetContents.forEach((sheetRow, rowNum) => {
@@ -142,6 +154,46 @@ export default function TableLoader() {
     writeFile(wb, "워크시트.xlsx");
   }
 
+  function applyWorksheet() {
+    if (workbook.current.size == 0) {
+      window.alert("Current workspace is empty, so there is nothing to save!");
+      return;
+    }
+    if (!workbook.current.has(compareSheetName)) {
+      window.alert("Please select a valid sheet that contains find/replace values!");
+      return;
+    }
+    const findColumn = columnNameToIndex(compareValueColumn);
+    const replaceColumn = columnNameToIndex(replaceValueColumn);
+    if (findColumn == -1 || replaceColumn == -1) {
+      window.alert("Please specify a valid column!");
+      return;
+    }
+    const refSheet = workbook.current.get(compareSheetName);
+    if (refSheet == null || refSheet == undefined) {
+      window.alert("The specified find/replace sheet is null. Please specify a valid one!");
+      return;
+    }
+    let count = 0;
+    Array.from(refSheet.values()).filter((x) => { return x.column == findColumn; }).forEach((refValue) => {
+      workbook.current.forEach((v, k) => {
+        if (k != compareSheetName) {
+          v.forEach((compareCell) => {
+            if (compareCell.value == refValue.value) {
+              const newValue = refSheet.get(refValue.row + "_" + replaceColumn);
+              if (newValue != null && newValue != undefined) {
+                compareCell.value = newValue.value;
+                count++;
+              }
+            }
+          })
+        }
+      })
+    })
+    window.alert(count + " cells affected!");
+    setCurrentSheet("");
+  }
+
   function handleClear(): void {
     clearCurrentWorksheet();
   }
@@ -170,6 +222,17 @@ export default function TableLoader() {
       i = Math.floor((i - 1) / 26);
     }
     return col;
+  }
+
+  function columnNameToIndex(name: string): number {
+    if (!name) return -1;
+    const s = name.toUpperCase().replace(/[^A-Z]/g, "");
+    if (s.length === 0) return -1;
+    let idx = 0;
+    for (let i = 0; i < s.length; i++) {
+      idx = idx * 26 + (s.charCodeAt(i) - 65 + 1);
+    }
+    return idx - 1;
   }
 
   // selection handlers
@@ -240,7 +303,7 @@ export default function TableLoader() {
         <label htmlFor="fileSelector">
           <h4>파일 선택</h4>
         </label>
-        <input id="fileSelector" type="file" style={{ display: "none" }} onChange={(ev) => { ev.target.files != null ? fileLoad(ev.target.files[0]) : window.alert("The selected file is null"); }}></input>
+        <input id="fileSelector" type="file" style={{ display: "none" }} onChange={(ev) => { ev.target.files != null ? fileLoad(ev.target.files[0]) : window.alert("The selected file is null"); ev.target.files = null; }}></input>
         <button type="button" onClick={handleClear}>지우기</button>
         <button type="button" onClick={() => { exportCurrentWorkbook() }}>저장</button>
       </div>
@@ -254,6 +317,17 @@ export default function TableLoader() {
       <div className={styles.buttonContainer}>
         <input type="text" className={styles.addSheetTextbox} onChange={(x) => { _setNewSheetName(x.target.value); }} value={newSheetName}></input>
         <button type="button" className={styles.statHandlerButton} onClick={() => { addNewSheet(newSheetName); }}>시트 추가</button>
+      </div>
+      <div className={styles.buttonContainer}>
+        <select name="sheetName" className={styles.statHandlerButton} value={compareSheetName} onChange={(ev) => { _setCompareSheetName(ev.target.value); }}>
+          <option value="" >검색/변경값이 있는 시트를 선택해 주세요</option>
+          {sheetList.map(x => (<option value={x} key={x}>{x}</option>))}
+        </select>
+        <div> 검색값 열 : </div>
+        <input type="text" className={styles.statHandlerButton} onChange={(x) => { _setCompareValueColumn(x.target.value); }} value={compareValueColumn}></input>
+        <div> 교체값 열 : </div>
+        <input type="text" className={styles.statHandlerButton} onChange={(x) => { _setReplaceValueColumn(x.target.value); }} value={replaceValueColumn}></input>
+        <button type="button" className={styles.statHandlerButton} onClick={() => { applyWorksheet(); }}>적용</button>
       </div>
       <div className={styles.tableContainer} onScroll={(ev) => 
           { const currTarget = ev.currentTarget; 
