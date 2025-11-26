@@ -32,5 +32,46 @@ th, td {
     overflow: hidden;    /* Hides any content that exceeds the element's box */
     text-overflow: clip; /* Displays an ellipsis (...) for clipped text */
     width: 5vw;
-    border: 3px solid
+    border: 3px solid;
+}
+
+/* sticky header (top row) */
+.stickyHeader {
+    position: sticky;
+    top: 0;
+    background: inherit;
+    z-index: 2;
+}
+
+/* sticky left column (row numbers) */
+.stickyColumn {
+    position: sticky;
+    left: 0;
+    background: inherit;
+    z-index: 1;
+    text-align: center;
+    font-weight: bold;
+}
+
+/* top-left corner cell */
+.corner {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    background: inherit;
+}
+
+/* selected cell styling */
+.selectedCell {
+    /* default light mode */
+    background-color: #D3D3D3;
+}
+
+/* dark mode override */
+@media (prefers-color-scheme: dark) {
+  .selectedCell {
+    background-color: #010048;
+    color: #ffffff;
+  }
 }

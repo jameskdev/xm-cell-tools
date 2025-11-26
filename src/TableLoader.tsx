@@ -14,6 +14,10 @@ export default function TableLoader() {
   const [maxRows, _setMaxRows] = useState(25);
   const [maxColumns, _setMaxColumns] = useState(25);
 
+  // new states for selection / editing
+  const [selectedCellId, _setSelectedCellId] = useState<string>("");
+  const [editingCellId, _setEditingCellId] = useState<string>("");
+
   function addNewSheet(sheetName: string) {
     workbook.current.set(sheetName, new Map());
     console.log("Current sheet length is: " + sheetList.length);
@@ -148,6 +152,36 @@ export default function TableLoader() {
     }
   }
 
+  // helpers for column names
+  function indexToColumnName(index: number): string {
+    // 0 -> A, 25 -> Z, 26 -> AA
+    let col = "";
+    let i = index + 1;
+    while (i > 0) {
+      const rem = (i - 1) % 26;
+      col = String.fromCharCode(65 + rem) + col;
+      i = Math.floor((i - 1) / 26);
+    }
+    return col;
+  }
+
+  // selection handlers
+  function handleSelectCell(id: string) {
+    if (selectedCellId === id) {
+      _setSelectedCellId("");
+    } else {
+      _setSelectedCellId(id);
+    }
+  }
+  function handleRequestEdit(id: string) {
+    // make sure only one editing cell exists
+    _setEditingCellId(id);
+    _setSelectedCellId(id);
+  }
+  function handleCancelEdit() {
+    _setEditingCellId("");
+  }
+
   return (
     <div>
       <div className={styles.buttonContainer}>
@@ -161,7 +195,7 @@ export default function TableLoader() {
       <div className={styles.buttonContainer}>
         <select name="sheetName" className={styles.sheetSelector} value={currentSheetName} onChange={(ev) => { setCurrentSheet(ev.target.value); }}>
           <option value="" >시트를 선택해 주세요</option>
-          {sheetList.map(x => (<option value={x} >{x}</option>))}
+          {sheetList.map(x => (<option value={x} key={x}>{x}</option>))}
         </select>
         <button type="button" className={styles.statHandlerButton} onClick={() => { removeSheet(currentSheetName); }}>시트 삭제</button>
       </div>
@@ -173,15 +207,55 @@ export default function TableLoader() {
           { const currTarget = ev.currentTarget; 
             adjustDisplaySize(currTarget.clientHeight, currTarget.scrollTop, currTarget.scrollHeight, currTarget.clientWidth, currTarget.scrollLeft, currTarget.scrollWidth) }}>
         <table>
+        {currentSheet != undefined ? 
+        (<>
+          <thead>
+            <tr>
+              <th className={styles.corner}></th>
+              {Array.from({ length: (maxColumns - leftOffset) }, (_2, ci) => {
+                const colIndex = ci + leftOffset;
+                return <th key={"H_" + colIndex} className={styles.stickyHeader}>{indexToColumnName(colIndex)}</th>
+              })}
+            </tr>
+          </thead>
           <tbody>
-            {currentSheet != undefined ? Array.from({ length: (maxRows - topOffset) }, (_, ri) => (
-              <tr key={"ROW_" + (ri + topOffset)}>
-                {Array.from({ length: maxColumns - leftOffset }, (_2, ci) => (
-                  <CellItem key={(ri + topOffset) + "_" + (ci + leftOffset)} cellValue={currentSheet.get((ri + topOffset) + "_" + (ci + leftOffset))?.value ?? ""} onValueChange={(nv) => { addOrModifyCurrentSheetCell((ri + topOffset) + "_" + (ci + leftOffset), { row: ri + topOffset, column: ci + leftOffset, value: nv }); }} onPaste={(pv) => { pasteToTable(pv, ri, ci); }}></CellItem>
-                ))}
+            {Array.from({ length: (maxRows - topOffset) }, (_, ri) => {
+              const absRow = ri + topOffset;
+              return (
+              <tr key={"ROW_" + absRow}>
+                <td className={styles.stickyColumn}>{absRow + 1}</td>
+                {Array.from({ length: maxColumns - leftOffset }, (_2, ci) => {
+                  const absCol = ci + leftOffset;
+                  const id = absRow + "_" + absCol;
+                  const value = currentSheet.get(id)?.value ?? "";
+                  return (
+                    <CellItem
+                      key={id}
+                      id={id}
+                      cellValue={value}
+                      onValueChange={(nv) => { addOrModifyCurrentSheetCell(id, { row: absRow, column: absCol, value: nv }); }}
+                      onPaste={(pv) => { pasteToTable(pv, absRow, absCol); }}
+                      selected={selectedCellId === id}
+                      isEditing={editingCellId === id}
+                      onSelect={handleSelectCell}
+                      onRequestEdit={handleRequestEdit}
+                      onCancelEdit={handleCancelEdit}
+                    />
+                  )
+                })}
               </tr>
-            )) : (<tr><td>시트를 새로 추가해 주세요!</td></tr>)}
+            )})}
           </tbody>
+        </>) 
+        : 
+        (<>
+          <thead>
+            <tr>
+              <th>시트를 새로 추가해 주세요!</th>
+            </tr>
+          </thead>
+        </>)
+        }
         </table>
       </div>
     </div>
