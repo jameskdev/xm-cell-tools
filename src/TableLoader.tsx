@@ -1,4 +1,4 @@
-import {  useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { read, utils, writeFile } from "xlsx";
 import styles from "./TableLoader.module.css"
 import CellItem, { type CellData } from './CellItem';
@@ -14,13 +14,25 @@ export default function TableLoader() {
   const [maxRows, _setMaxRows] = useState(25);
   const [maxColumns, _setMaxColumns] = useState(25);
 
-  // new states for selection / editing
+  // selection / editing
   const [selectedCellId, _setSelectedCellId] = useState<string>("");
   const [editingCellId, _setEditingCellId] = useState<string>("");
 
+  // Central editor buffer manager: only one buffer exists while editing
+  const [editingBuffer, _setEditingBuffer] = useState<string | null>(null);
+
+  // Central cancel guard for edit/cancel semantics
+  const editCancelledRef = useRef(false);
+
+  // helper to parse "r_c" id into numbers
+  function parseCellId(id: string) {
+    const parts = id.split("_");
+    if (parts.length !== 2) return { row: 0, column: 0 };
+    return { row: parseInt(parts[0], 10), column: parseInt(parts[1], 10) };
+  }
+
   function addNewSheet(sheetName: string) {
     workbook.current.set(sheetName, new Map());
-    console.log("Current sheet length is: " + sheetList.length);
     _updateSheetList([...sheetList, sheetName]);
   }
 
@@ -30,7 +42,6 @@ export default function TableLoader() {
       setCurrentSheet("");
       workbook.current.delete(sheetName);
       const newList = sheetList.filter((x) => { return x != sheetName; });
-      console.log(newList);
       _updateSheetList(newList);
     }
   }
@@ -86,15 +97,17 @@ export default function TableLoader() {
   }
 
   function fileLoad(loadedFile : File) {
-    loadedFile.arrayBuffer().then((res) => { 
+    loadedFile.arrayBuffer().then((res) => {
       const wb = read(res);
       wb.SheetNames.forEach((sn) => {
         addNewSheet(sn);
         const sheetToAppendTo = workbook.current.get(sn);
         const sheetContents = utils.sheet_to_json<string[]>(wb.Sheets[sn], {header: 1});
-        sheetContents.forEach((sheetRow, rowNum) => { 
-          sheetRow.forEach((cellContent, colNum) => { sheetToAppendTo?.set(rowNum + "_" + colNum, { row : rowNum, column : colNum, value : cellContent }); });
-         })
+        sheetContents.forEach((sheetRow, rowNum) => {
+          sheetRow.forEach((cellContent, colNum) => {
+            sheetToAppendTo?.set(rowNum + "_" + colNum, { row : rowNum, column : colNum, value : cellContent });
+          });
+        })
       })
     });
   }
@@ -126,35 +139,29 @@ export default function TableLoader() {
     retVal.forEach((v, k) => {
       utils.book_append_sheet(wb, utils.aoa_to_sheet(v), k);
     });
-    writeFile(wb, "새로운 워크시트.xlsx");
+    writeFile(wb, "워크시트.xlsx");
   }
 
   function handleClear(): void {
     clearCurrentWorksheet();
   }
 
-  function adjustDisplaySize(clientHeight : number, scrollTop : number, 
-      scrollHeight : number, clientWidth : number, 
+  function adjustDisplaySize(clientHeight : number, scrollTop : number,
+      scrollHeight : number, clientWidth : number,
       scrollLeft : number, scrollWidth : number) {
-    if (clientHeight + scrollTop >= scrollHeight) { 
+    if (clientHeight + scrollTop >= scrollHeight) {
       _setMaxRows(maxRows + 50);
-      //_setTopOffset(topOffset + 50);
     } else if (scrollTop == 0) {
       _setMaxRows(Math.max(25));
-      //_setTopOffset(Math.max(topOffset - 50, 0));
     }
-    if (clientWidth + scrollLeft >= scrollWidth) { 
+    if (clientWidth + scrollLeft >= scrollWidth) {
       _setMaxColumns(maxColumns + 50);
-      //_setLeftOffset(leftOffset + 50);
     } else if (scrollLeft == 0) {
       _setMaxColumns(25);
-      //_setLeftOffset(Math.max(leftOffset - 50, 0));
     }
   }
 
-  // helpers for column names
   function indexToColumnName(index: number): string {
-    // 0 -> A, 25 -> Z, 26 -> AA
     let col = "";
     let i = index + 1;
     while (i > 0) {
@@ -167,19 +174,64 @@ export default function TableLoader() {
 
   // selection handlers
   function handleSelectCell(id: string) {
-    if (selectedCellId === id) {
-      _setSelectedCellId("");
-    } else {
+    _setSelectedCellId(id);
+  }
+
+  // Start editing: create central buffer and set edit id
+  function handleRequestEdit(id: string) {
+    //const { row, column } = parseCellId(id);
+    if (editingCellId != id) {
+      const value = currentSheet?.get(id)?.value ?? "";
+      editCancelledRef.current = false; // reset cancel guard
+      _setEditingCellId(id);
+      _setEditingBuffer(value);
       _setSelectedCellId(id);
     }
   }
-  function handleRequestEdit(id: string) {
-    // make sure only one editing cell exists
-    _setEditingCellId(id);
-    _setSelectedCellId(id);
+
+  // update central buffer while typing
+  function handleUpdateEditingBuffer(text: string) {
+    _setEditingBuffer(text);
   }
-  function handleCancelEdit() {
+
+  // commit: write buffer to workbook and clear buffer/id
+  function handleCommitEditFromChild(id?: string) {
+    // id optional: if provided ensure matching editingCellId
+    const targetId = id ?? editingCellId;
+    if (!targetId) {
+      _setEditingCellId("");
+      _setEditingBuffer(null);
+      return;
+    }
+    const { row, column } = parseCellId(targetId);
+    const value = editingBuffer ?? "";
+    addOrModifyCurrentSheetCell(targetId, { row, column, value });
     _setEditingCellId("");
+    _setEditingBuffer(null);
+    editCancelledRef.current = false;
+  }
+
+  // cancel: mark cancelled and clear buffer/id
+  function handleCancelEditFromChild() {
+    editCancelledRef.current = true;
+    _setEditingCellId("");
+    _setEditingBuffer(null);
+  }
+
+  // handle blur coming from child cell: commit or honor cancel centrally, then deselect
+  function handleCellBlurFromChild(id: string) {
+    // If a cancel was requested, clear the flag and do not commit
+    if (editCancelledRef.current) {
+      editCancelledRef.current = false;
+      _setSelectedCellId(""); // deselect after cancel
+      return;
+    }
+    // If the blurred cell was the one being edited, commit
+    if (editingCellId === id) {
+      handleCommitEditFromChild(id);
+    }
+    // finally deselect (user requested cell lost focus)
+    _setSelectedCellId("");
   }
 
   return (
@@ -233,13 +285,17 @@ export default function TableLoader() {
                       key={id}
                       id={id}
                       cellValue={value}
-                      onValueChange={(nv) => { addOrModifyCurrentSheetCell(id, { row: absRow, column: absCol, value: nv }); }}
+                      // commit will be handled centrally; pass commit handler
+                      onCommit={() => handleCommitEditFromChild(id)}
+                      onUpdateBuffer={(txt) => handleUpdateEditingBuffer(txt)}
+                      onRequestEdit={() => handleRequestEdit(id)}
+                      onCancelRequest={() => handleCancelEditFromChild()}
                       onPaste={(pv) => { pasteToTable(pv, absRow, absCol); }}
                       selected={selectedCellId === id}
                       isEditing={editingCellId === id}
+                      editingBuffer={editingCellId === id ? editingBuffer : null}
                       onSelect={handleSelectCell}
-                      onRequestEdit={handleRequestEdit}
-                      onCancelEdit={handleCancelEdit}
+                      onBlurNotify={(cellId) => handleCellBlurFromChild(cellId)}
                     />
                   )
                 })}
