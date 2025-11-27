@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { read, utils, writeFile } from "xlsx";
 import styles from "./TableLoader.module.css"
 import CellItem, { type CellData } from './CellItem';
+import Worker from './FindAndApplyWorker.js?worker'
 
 export default function TableLoader() {
   const workbook = useRef<Map<string, Map<string, CellData>>>(new Map());
@@ -174,24 +175,24 @@ export default function TableLoader() {
       window.alert("The specified find/replace sheet is null. Please specify a valid one!");
       return;
     }
-    let count = 0;
-    Array.from(refSheet.values()).filter((x) => { return x.column == findColumn; }).forEach((refValue) => {
-      workbook.current.forEach((v, k) => {
-        if (k != compareSheetName) {
-          v.forEach((compareCell) => {
-            if (compareCell.value == refValue.value) {
-              const newValue = refSheet.get(refValue.row + "_" + replaceColumn);
-              if (newValue != null && newValue != undefined) {
-                compareCell.value = newValue.value;
-                count++;
-              }
-            }
-          })
-        }
-      })
-    })
-    window.alert(count + " cells affected!");
-    setCurrentSheet("");
+    const replaceWorker = new Worker();
+    replaceWorker.postMessage([workbook.current, compareSheetName, findColumn, replaceColumn]);
+    replaceWorker.onmessage = (e) => {
+      console.log("OnMessage");
+      console.log(e.data);
+      const { type, resultWorkbook, changeCount, message } = e.data;
+      if (type == -1) {
+        window.alert(message);
+      } else if (type == 0) {
+        return;
+      } else if (type == 1 && resultWorkbook != null) {
+        const newWkMap = resultWorkbook as Map<string, Map<string, CellData>>;
+        workbook.current = new Map(newWkMap);
+        window.alert(changeCount + " cells affected!");
+        setCurrentSheet("");
+      }
+      replaceWorker.terminate();
+    };
   }
 
   function handleClear(): void {
