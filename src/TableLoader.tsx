@@ -23,7 +23,7 @@ export default function TableLoader() {
   const [editingCellId, _setEditingCellId] = useState<string>("");
 
   // Central editor buffer manager: only one buffer exists while editing
-  const [editingBuffer, _setEditingBuffer] = useState<string | null>(null);
+  const editingBuffer = useRef<string | null>(null);
 
   // Central cancel guard for edit/cancel semantics
   const editCancelledRef = useRef(false);
@@ -248,14 +248,14 @@ export default function TableLoader() {
       const value = currentSheet?.get(id)?.value ?? "";
       editCancelledRef.current = false; // reset cancel guard
       _setEditingCellId(id);
-      _setEditingBuffer(value);
+      editingBuffer.current = value;
       _setSelectedCellId(id);
     }
   }
 
   // update central buffer while typing
   function handleUpdateEditingBuffer(text: string) {
-    _setEditingBuffer(text);
+    editingBuffer.current = text;
   }
 
   // commit: write buffer to workbook and clear buffer/id
@@ -264,14 +264,14 @@ export default function TableLoader() {
     const targetId = id ?? editingCellId;
     if (!targetId) {
       _setEditingCellId("");
-      _setEditingBuffer(null);
+      editingBuffer.current = null;
       return;
     }
     const { row, column } = parseCellId(targetId);
-    const value = editingBuffer ?? "";
+    const value = editingBuffer.current ?? "";
     addOrModifyCurrentSheetCell(targetId, { row, column, value });
     _setEditingCellId("");
-    _setEditingBuffer(null);
+    editingBuffer.current = null;
     editCancelledRef.current = false;
   }
 
@@ -279,7 +279,7 @@ export default function TableLoader() {
   function handleCancelEditFromChild() {
     editCancelledRef.current = true;
     _setEditingCellId("");
-    _setEditingBuffer(null);
+    editingBuffer.current = null;
   }
 
   // handle blur coming from child cell: commit or honor cancel centrally, then deselect
@@ -368,7 +368,6 @@ export default function TableLoader() {
                       onPaste={(pv) => { pasteToTable(pv, absRow, absCol); }}
                       selected={selectedCellId === id}
                       isEditing={editingCellId === id}
-                      editingBuffer={editingCellId === id ? editingBuffer : null}
                       onSelect={handleSelectCell}
                       onBlurNotify={(cellId) => handleCellBlurFromChild(cellId)}
                     />

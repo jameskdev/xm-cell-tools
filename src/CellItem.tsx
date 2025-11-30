@@ -9,7 +9,6 @@ export default function CellItem({
     onPaste,
     selected,
     isEditing,
-    editingBuffer,       // current buffer from parent (null when not editing)
     onSelect,
     onRequestEdit,
     onCancelRequest,     // request parent to stop editing
@@ -22,7 +21,7 @@ export default function CellItem({
     const el = tdRef.current;
     if (isEditing && el) {
       // initialize DOM with central buffer (parent-managed).
-      el.textContent = editingBuffer ?? "";
+      el.textContent = cellValue ?? "";
     } else if (!isEditing && el) {
       // When isEditing flips from true to false,
       // we must ensure that the correct value is shown instead of the stale one.
@@ -140,7 +139,6 @@ export interface CellItemProps {
   onPaste: (pasteValue: string) => void;
   selected: boolean;
   isEditing: boolean;
-  editingBuffer: string | null;
   onSelect: (id: string) => void;
   onRequestEdit: () => void;
   onCancelRequest: () => void;
