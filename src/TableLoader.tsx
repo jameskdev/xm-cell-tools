@@ -3,6 +3,7 @@ import { read, utils, writeFile } from "xlsx";
 import styles from "./TableLoader.module.css"
 import CellItem, { type CellData } from './CellItem';
 import Worker from './FindAndApplyWorker.js?worker'
+import Spinning from './Spinning';
 
 export default function TableLoader() {
   const workbook = useRef<Map<string, Map<string, CellData>>>(new Map());
@@ -17,6 +18,7 @@ export default function TableLoader() {
   const [leftOffset, _setLeftOffset] = useState(0);
   const [maxRows, _setMaxRows] = useState(25);
   const [maxColumns, _setMaxColumns] = useState(25);
+  const [isWorkGoingOn, _setWorkGoingOn] = useState(false);
 
   // selection / editing
   const [selectedCellId, _setSelectedCellId] = useState<string>("");
@@ -175,6 +177,7 @@ export default function TableLoader() {
       window.alert("The specified find/replace sheet is null. Please specify a valid one!");
       return;
     }
+    _setWorkGoingOn(true);
     const replaceWorker = new Worker();
     replaceWorker.postMessage([workbook.current, compareSheetName, findColumn, replaceColumn]);
     replaceWorker.onmessage = (e) => {
@@ -192,6 +195,7 @@ export default function TableLoader() {
         setCurrentSheet("");
       }
       replaceWorker.terminate();
+      _setWorkGoingOn(false);
     };
   }
 
@@ -300,6 +304,7 @@ export default function TableLoader() {
 
   return (
     <div>
+      {isWorkGoingOn ? (<Spinning></Spinning>) : (<>
       <div className={styles.buttonContainer}>
         <label htmlFor="fileSelector">
           <h4>파일 선택</h4>
@@ -330,6 +335,7 @@ export default function TableLoader() {
         <input type="text" className={styles.statHandlerButton} onChange={(x) => { _setReplaceValueColumn(x.target.value); }} value={replaceValueColumn}></input>
         <button type="button" className={styles.statHandlerButton} onClick={() => { applyWorksheet(); }}>적용</button>
       </div>
+      </>)}
       <div className={styles.tableContainer} onScroll={(ev) => 
           { const currTarget = ev.currentTarget; 
             adjustDisplaySize(currTarget.clientHeight, currTarget.scrollTop, currTarget.scrollHeight, currTarget.clientWidth, currTarget.scrollLeft, currTarget.scrollWidth) }}>

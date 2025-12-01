@@ -1,0 +1,22 @@
+.loadingSpin {
+  size: 5vw;
+  z-index: 99;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+
+@keyframes loadSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .loadingSpin {
+    animation: loadSpin infinite 1s linear;
+  }
+}
