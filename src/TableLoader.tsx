@@ -4,6 +4,7 @@ import styles from "./TableLoader.module.css"
 import CellItem, { type CellData } from './CellItem';
 import Worker from './FindAndApplyWorker.js?worker'
 import Spinning from './Spinning';
+import FetchLoaderDSL from './FetchLoader';
 
 export default function TableLoader() {
   const workbook = useRef<Map<string, Map<string, CellData>>>(new Map());
@@ -19,6 +20,7 @@ export default function TableLoader() {
   const [maxRows, _setMaxRows] = useState(25);
   const [maxColumns, _setMaxColumns] = useState(25);
   const [isWorkGoingOn, _setWorkGoingOn] = useState(false);
+  const commandToExecute = useRef("");
 
   // selection / editing
   const [selectedCellId, _setSelectedCellId] = useState<string>("");
@@ -286,6 +288,11 @@ export default function TableLoader() {
     editingBuffer.current = null;
   }
 
+  function executeCommand() {
+    const gx = new FetchLoaderDSL(commandToExecute.current);
+    gx.execute().then(() => { /* TO BE IMPLEMENTED */ }, (r) => { { /* TO BE IMPLEMENTED */ } });
+  }
+
   // handle blur coming from child cell: commit or honor cancel centrally, then deselect
   function handleCellBlurFromChild(id: string) {
     // If a cancel was requested, clear the flag and do not commit
@@ -335,6 +342,15 @@ export default function TableLoader() {
         <input type="text" className={styles.statHandlerButton} onChange={(x) => { _setReplaceValueColumn(x.target.value); }} value={replaceValueColumn}></input>
         <button type="button" className={styles.statHandlerButton} onClick={() => { applyWorksheet(); }}>적용</button>
       </div>
+      <>
+        <div className={styles.sectionContainer}>
+          <textarea rows={10} onChange={(ev) => { commandToExecute.current = ev.currentTarget.value; } }></textarea>
+          <div className={styles.buttonContainer}>
+            <button type="button" onClick={handleClear}>지우기</button>
+            <button type="button" onClick={() => { executeCommand() }}>명령어 실행</button>
+          </div>
+        </div>
+      </>
       </>)}
       <div className={styles.tableContainer} onScroll={(ev) => 
           { const currTarget = ev.currentTarget; 

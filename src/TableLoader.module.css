@@ -4,6 +4,17 @@
     flex-direction: row;
     justify-content: space-evenly;
 }
+.sectionContainer {
+    margin-top : 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+}
+textarea {
+    width : 100%;
+    resize : none;
+}
 .tableContainer {
     width : 100%;
     height : 50vh;
