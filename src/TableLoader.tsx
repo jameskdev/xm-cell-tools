@@ -212,7 +212,7 @@ export default function TableLoader() {
     } else if (scrollTop == 0) {
       _setMaxRows(Math.max(25));
     }
-    if (clientWidth + scrollLeft >= scrollWidth) {
+    if (clientWidth + scrollLeft >= (scrollWidth - 10)) {
       _setMaxColumns(maxColumns + 50);
     } else if (scrollLeft == 0) {
       _setMaxColumns(25);

@@ -39,6 +39,7 @@ th, td {
 .stickyHeader {
     position: sticky;
     top: 0;
+    resize : horizontal;
     background: inherit;
     z-index: 2;
 }
