@@ -19,6 +19,7 @@ export default function TableLoader() {
   const [maxRows, _setMaxRows] = useState(25);
   const [maxColumns, _setMaxColumns] = useState(25);
   const [isWorkGoingOn, _setWorkGoingOn] = useState(false);
+  const [allowPartialMatch, _setAllowPartialMatch] = useState(false);
 
   // selection / editing
   const [selectedCellId, _setSelectedCellId] = useState<string>("");
@@ -179,7 +180,7 @@ export default function TableLoader() {
     }
     _setWorkGoingOn(true);
     const replaceWorker = new Worker();
-    replaceWorker.postMessage([workbook.current, compareSheetName, findColumn, replaceColumn]);
+    replaceWorker.postMessage([workbook.current, compareSheetName, findColumn, replaceColumn, allowPartialMatch]);
     replaceWorker.onmessage = (e) => {
       console.log("OnMessage");
       console.log(e.data);
@@ -191,7 +192,7 @@ export default function TableLoader() {
       } else if (type == 1 && resultWorkbook != null) {
         const newWkMap = resultWorkbook as Map<string, Map<string, CellData>>;
         workbook.current = new Map(newWkMap);
-        window.alert(changeCount + " cells affected!");
+        window.alert(changeCount + " matches were changed!");
         setCurrentSheet("");
       }
       replaceWorker.terminate();
@@ -330,9 +331,11 @@ export default function TableLoader() {
           {sheetList.map(x => (<option value={x} key={x}>{x}</option>))}
         </select>
         <div> 검색값 열 : </div>
-        <input type="text" className={styles.statHandlerButton} onChange={(x) => { _setCompareValueColumn(x.target.value); }} value={compareValueColumn}></input>
+        <input type="text" onChange={(x) => { _setCompareValueColumn(x.target.value); }} value={compareValueColumn}></input>
         <div> 교체값 열 : </div>
-        <input type="text" className={styles.statHandlerButton} onChange={(x) => { _setReplaceValueColumn(x.target.value); }} value={replaceValueColumn}></input>
+        <input type="text" onChange={(x) => { _setReplaceValueColumn(x.target.value); }} value={replaceValueColumn}></input>
+        <div> 부분일치 허용: </div>
+        <input type="checkbox" checked={allowPartialMatch} onChange={(ev) => { _setAllowPartialMatch(ev.currentTarget.checked); }} />
         <button type="button" className={styles.statHandlerButton} onClick={() => { applyWorksheet(); }}>적용</button>
       </div>
       </>)}
