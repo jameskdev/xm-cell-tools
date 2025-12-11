@@ -4,6 +4,7 @@ import styles from "./TableLoader.module.css"
 import CellItem, { type CellData } from './CellItem';
 import Worker from './FindAndApplyWorker.js?worker'
 import Spinning from './Spinning';
+import { parseFromInputString } from './SubripTool';
 
 export default function TableLoader() {
   const workbook = useRef<Map<string, Map<string, CellData>>>(new Map());
@@ -38,14 +39,15 @@ export default function TableLoader() {
     return { row: parseInt(parts[0], 10), column: parseInt(parts[1], 10) };
   }
 
-  function addNewSheet(sheetName: string) {
+  function addNewSheet(sheetName: string) : boolean {
     if (workbook.current.has(sheetName)) {
       window.alert("The sheet name that you specified already exists. Please use a different sheet name!");
-      return;
+      return false;
     }
     workbook.current.set(sheetName, new Map());
     sheetList.push(sheetName);
     _updateSheetList(Array.from(sheetList));
+    return true;
   }
 
   function removeSheet(sheetName: string) {
@@ -109,23 +111,46 @@ export default function TableLoader() {
   }
 
   function fileLoad(loadedFile : File) {
-    loadedFile.arrayBuffer().then((res) => {
-      const wb = read(res);
-      wb.SheetNames.forEach((sn_raw) => {
-        let sn = sn_raw;
-        if (workbook.current.has(sn)) {
-          sn = sn + "_copy";
-        }
-        addNewSheet(sn);
-        const sheetToAppendTo = workbook.current.get(sn);
-        const sheetContents = utils.sheet_to_json<string[]>(wb.Sheets[sn], {header: 1});
-        sheetContents.forEach((sheetRow, rowNum) => {
-          sheetRow.forEach((cellContent, colNum) => {
-            sheetToAppendTo?.set(rowNum + "_" + colNum, { row : rowNum, column : colNum, value : cellContent });
-          });
+    if (loadedFile.name.endsWith(".srt")) {
+      loadedFile.text().then((txt) => { 
+        if (!addNewSheet(loadedFile.name)) { return; }
+        const sheetToAppendTo = workbook.current.get(loadedFile.name);
+        if (sheetToAppendTo == undefined) { window.alert("An error occurred while adding a sheet file!"); return; }
+        const srtParsed = parseFromInputString(txt);
+        sheetToAppendTo.set("0_0", {row : 0, column : 0, value : "SEQUENCE"});
+        sheetToAppendTo.set("0_1", {row : 0, column : 1, value : "START_TIME"});
+        sheetToAppendTo.set("0_2", {row : 0, column : 2, value : "END_TIME"});
+        sheetToAppendTo.set("0_3", {row : 0, column : 3, value : "CONTENTS"});
+        let rowNumber = 1;
+        srtParsed.forEach(srt => {
+          sheetToAppendTo.set(rowNumber + "_0", {row : rowNumber, column : 0, value : srt.seq.toString()});
+          sheetToAppendTo.set(rowNumber + "_1", {row : rowNumber, column : 1, value : srt.getStartTime()});
+          sheetToAppendTo.set(rowNumber + "_2", {row : rowNumber, column : 2, value : srt.getEndTime()});
+          srt.contents.forEach(blkLine => {
+            sheetToAppendTo.set(rowNumber + "_3", {row : rowNumber, column : 3, value : blkLine});
+            rowNumber++;
+          })
+        });
+      }).catch((rej) => { window.alert("An error occurred while loading the file! The reason is " + rej); });
+    } else if (loadedFile.name.endsWith(".xls") || loadedFile.name.endsWith(".xlsx")) {
+      loadedFile.arrayBuffer().then((res) => {
+        const wb = read(res);
+        wb.SheetNames.forEach((sn_raw) => {
+          let sn = sn_raw;
+          if (workbook.current.has(sn)) {
+            sn = sn + "_copy";
+          }
+          addNewSheet(sn);
+          const sheetToAppendTo = workbook.current.get(sn);
+          const sheetContents = utils.sheet_to_json<string[]>(wb.Sheets[sn], {header: 1});
+          sheetContents.forEach((sheetRow, rowNum) => {
+            sheetRow.forEach((cellContent, colNum) => {
+              sheetToAppendTo?.set(rowNum + "_" + colNum, { row : rowNum, column : colNum, value : cellContent });
+            });
+          })
         })
-      })
-    });
+      }).catch((rej) => { window.alert("An error occurred while loading the file! The reason is : " + rej); });;
+    }
   }
 
   function exportCurrentWorkbook() {
